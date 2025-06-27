@@ -1,28 +1,29 @@
 #!/bin/bash
-
 yum update -y
-#amazon-linux-extras install epel -y
-#yum install erlang -y
-#yum install rabbitmq-server -y
-wget https://github.com/rabbitmq/erlang-rpm/releases/download/v23.2.1/erlang-23.2.1-1.el7.x86_64.rpm
-yum localinstall erlang-23.2.1-1.el7.x86_64.rpm -y
+
+yum install -y epel-release
+yum install -y erlang
+
+# Install RabbitMQ
 wget https://github.com/rabbitmq/rabbitmq-server/releases/download/v3.10.0/rabbitmq-server-3.10.0-1.el8.noarch.rpm
-sudo rpm -Uvh rabbitmq-server-3.10.0-1.el8.noarch.rpm
-systemctl enable --now rabbitmq-server.service
+yum localinstall rabbitmq-server-3.10.0-1.el8.noarch.rpm -y
+
+systemctl enable rabbitmq-server
+systemctl start rabbitmq-server
+
 rabbitmq-plugins enable rabbitmq_management
-systemctl enable rabbitmq-server.service
-systemctl start rabbitmq-server.service
-systemctl stop rabbitmq-server.service
-truncate -s 0  /var/lib/rabbitmq/.erlang.cookie
-echo "XAIFUIBJAVHSEZOKOMHD" >>  /var/lib/rabbitmq/.erlang.cookie 
-systemctl start rabbitmq-server.service
+systemctl stop rabbitmq-server
+echo "XAIFUIBJAVHSEZOKOMHD" > /var/lib/rabbitmq/.erlang.cookie
+chown rabbitmq:rabbitmq /var/lib/rabbitmq/.erlang.cookie
+chmod 400 /var/lib/rabbitmq/.erlang.cookie
+systemctl start rabbitmq-server
+
+# Wait for service to be ready
+sleep 10
+
+# Create admin user
 export USERNAME="$(aws ssm get-parameter --name /${environment_name}/rabbit/USERNAME --with-decryption --output text --query Parameter.Value --region ${region})"
-echo "$USERNAME"
 export PASS="$(aws ssm get-parameter --name /${environment_name}/rabbit/PASSWORD --with-decryption --output text --query Parameter.Value --region ${region})"
-echo "$PASS"
-sudo rabbitmqctl add_user "$USERNAME" "$PASS"
-sudo rabbitmqctl set_user_tags admin administrator
-sudo rabbitmqctl set_permissions -p / admin ".*" ".*" ".*"
-sleep 10s
-sudo rabbitmq-plugins enable rabbitmq_management
-sudo systemctl restart rabbitmq-server.service
+rabbitmqctl add_user "$USERNAME" "$PASS"
+rabbitmqctl set_user_tags "$USERNAME" administrator
+rabbitmqctl set_permissions -p / "$USERNAME" ".*" ".*" ".*"
